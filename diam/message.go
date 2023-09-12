@@ -293,6 +293,22 @@ func (m *Message) WriteToStreamWithRetry(writer io.Writer, stream, retries uint)
 	}
 }
 
+// WriteBufferToStreamWithRetry writes a provided buffer into the writer with specified number of retries
+// if needed
+// If writer implements MultistreamWriter, writes the message into specified stream
+func (m *Message) WriteBufferToStreamWithRetry(writer io.Writer, stream, retries uint, l int, serialized []byte) (n int, err error) {
+	buf := newWriterBuffer(l)
+	defer putWriterBuffer(buf)
+	b := buf.Bytes()[0:l]
+	copy(b, serialized)
+	switch w := writer.(type) {
+	case MultistreamWriter:
+		return writeStreamRetry(w, b, stream, retries)
+	default:
+		return writeRetry(writer, b, retries)
+	}
+}
+
 func writeRetry(w io.Writer, b []byte, retries uint) (n int, err error) {
 	var wn int
 	for {
@@ -424,10 +440,8 @@ func avpsWithPath(avps []*AVP, path []uint32) []*AVP {
 //	avps, err := m.FindAVPs(264)
 //	avps, err := m.FindAVPs(avp.OriginHost)
 //	avps, err := m.FindAVPs("Origin-Host")
-//
 func (m *Message) FindAVPs(code interface{}, vendorID uint32) ([]*AVP, error) {
 	dictAVP, err := m.Dictionary().FindAVPWithVendor(m.Header.ApplicationID, code, vendorID)
-
 	if err != nil {
 		return nil, err
 	}
@@ -443,10 +457,8 @@ func (m *Message) FindAVPs(code interface{}, vendorID uint32) ([]*AVP, error) {
 //	avp, err := m.FindAVP(264)
 //	avp, err := m.FindAVP(avp.OriginHost)
 //	avp, err := m.FindAVP("Origin-Host")
-//
 func (m *Message) FindAVP(code interface{}, vendorID uint32) (*AVP, error) {
 	dictAVP, err := m.Dictionary().FindAVPWithVendor(m.Header.ApplicationID, code, vendorID)
-
 	if err != nil {
 		return nil, err
 	}
@@ -468,7 +480,6 @@ func (m *Message) FindAVP(code interface{}, vendorID uint32) (*AVP, error) {
 //	avp, err := m.FindAVPsWithPath([]interface{}{264})
 //	avp, err := m.FindAVPsWithPath([]interface{}{avp.OriginHost})
 //	avp, err := m.FindAVPsWithPath([]interface{}{"Origin-Host"})
-//
 func (m *Message) FindAVPsWithPath(path []interface{}, vendorID uint32) ([]*AVP, error) {
 	pathCodes := make([]uint32, len(path))
 	for i, pathCode := range path {
