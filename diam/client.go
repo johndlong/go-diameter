@@ -59,8 +59,8 @@ func DialTimeout(addr string, handler Handler, dp *dict.Parser, timeout time.Dur
 // DefaultServeMux is used. Allows binding dailer socket to given laddr.
 // If dict is nil, dict.Default is used.
 func DialExt(
-	network, addr string, handler Handler, dp *dict.Parser, timeout time.Duration, laddr net.Addr) (Conn, error) {
-
+	network, addr string, handler Handler, dp *dict.Parser, timeout time.Duration, laddr net.Addr,
+) (Conn, error) {
 	srv := &Server{Network: network, Addr: addr, Handler: handler, Dict: dp, LocalAddr: laddr}
 	return dial(srv, timeout)
 }
@@ -114,8 +114,8 @@ func DialTLSExt(
 	handler Handler,
 	dp *dict.Parser,
 	timeout time.Duration,
-	laddr net.Addr) (Conn, error) {
-
+	laddr net.Addr,
+) (Conn, error) {
 	srv := &Server{Network: network, Addr: addr, Handler: handler, Dict: dp, LocalAddr: laddr}
 	return dialTLS(srv, certFile, keyFile, timeout)
 }
@@ -164,6 +164,18 @@ func NewConn(rw net.Conn, addr string, handler Handler, dp *dict.Parser) (Conn, 
 	srv := &Server{Addr: addr, Handler: handler, Dict: dp}
 
 	c, err := srv.newConn(rw)
+	if err != nil {
+		return nil, err
+	}
+	go c.serve()
+	return c.writer, nil
+}
+
+// NewConn is the same as Dial, but using an already open net.Conn.
+func NewTLSConn(rw net.Conn, config *tls.Config, addr string, handler Handler, dp *dict.Parser) (Conn, error) {
+	srv := &Server{Addr: addr, Handler: handler, Dict: dp}
+
+	c, err := srv.newConn(tls.Client(rw, config))
 	if err != nil {
 		return nil, err
 	}

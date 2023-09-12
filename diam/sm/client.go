@@ -5,6 +5,7 @@
 package sm
 
 import (
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net"
@@ -111,8 +112,8 @@ func (cli *Client) DialExt(network, addr string, timeout time.Duration, laddr ne
 // DialTLSExt - Optionally binds client to laddr, calls the network address set as ip:port, performs a
 // handshake and optionally start a watchdog goroutine in background.
 func (cli *Client) DialTLSExt(
-	network, addr, certFile, keyFile string, timeout time.Duration, laddr net.Addr) (diam.Conn, error) {
-
+	network, addr, certFile, keyFile string, timeout time.Duration, laddr net.Addr,
+) (diam.Conn, error) {
 	return cli.dial(func() (diam.Conn, error) {
 		return diam.DialTLSExt(network, addr, certFile, keyFile, cli.Handler, cli.Dict, timeout, laddr)
 	})
@@ -122,6 +123,13 @@ func (cli *Client) DialTLSExt(
 func (cli *Client) NewConn(rw net.Conn, addr string) (diam.Conn, error) {
 	return cli.dial(func() (diam.Conn, error) {
 		return diam.NewConn(rw, addr, cli.Handler, cli.Dict)
+	})
+}
+
+// NewConn is like Dial, but using an already open net.Conn.
+func (cli *Client) NewTLSConn(rw net.Conn, config *tls.Config, addr string) (diam.Conn, error) {
+	return cli.dial(func() (diam.Conn, error) {
+		return diam.NewTLSConn(rw, config, addr, cli.Handler, cli.Dict)
 	})
 }
 
@@ -284,7 +292,7 @@ func (cli *Client) makeCER(hostIPAddresses []datatype.Address) *diam.Message {
 
 func (cli *Client) watchdog(c diam.Conn, dwac chan struct{}) {
 	disconnect := c.(diam.CloseNotifier).CloseNotify()
-	var osid = uint32(cli.Handler.cfg.OriginStateID)
+	osid := uint32(cli.Handler.cfg.OriginStateID)
 	for {
 		select {
 		case <-disconnect:
